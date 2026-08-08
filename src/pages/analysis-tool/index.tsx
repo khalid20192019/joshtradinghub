@@ -9,6 +9,16 @@ type TMarket = {
     decimals: number;
 };
 
+// The 5 classic volatility indices — long-standing, stable symbol codes (unlike the newer
+// 1-second variants, whose codes have changed over time and caused "invalid symbol" errors).
+const MARKETS: TMarket[] = [
+    { symbol: 'R_10', display_name: 'Volatility 10 Index', decimals: 3 },
+    { symbol: 'R_25', display_name: 'Volatility 25 Index', decimals: 3 },
+    { symbol: 'R_50', display_name: 'Volatility 50 Index', decimals: 4 },
+    { symbol: 'R_75', display_name: 'Volatility 75 Index', decimals: 4 },
+    { symbol: 'R_100', display_name: 'Volatility 100 Index', decimals: 2 },
+];
+
 const APP_ID = 1089; // Deriv's public demo app_id, used for read-only market data.
 
 const getLastDigit = (price: number, decimals: number): number => {
@@ -16,16 +26,8 @@ const getLastDigit = (price: number, decimals: number): number => {
     return Number(fixed[fixed.length - 1]);
 };
 
-const pipToDecimals = (pip: number): number => {
-    if (!pip || pip <= 0) return 2;
-    return Math.max(0, Math.round(-Math.log10(pip)));
-};
-
 const AnalysisTool = observer(() => {
-    const [markets, setMarkets] = useState<TMarket[]>([]);
-    const [markets_loading, setMarketsLoading] = useState(true);
-    const [markets_error, setMarketsError] = useState<string | null>(null);
-    const [selected_symbol, setSelectedSymbol] = useState('');
+    const [selected_symbol, setSelectedSymbol] = useState('R_75');
     const [ticks_window, setTicksWindow] = useState(1000);
     const [ticks_window_input, setTicksWindowInput] = useState('1000');
     const [current_price, setCurrentPrice] = useState<number | null>(null);
@@ -39,88 +41,16 @@ const AnalysisTool = observer(() => {
     );
     const [api_error, setApiError] = useState<string | null>(null);
 
-    const market = markets.find(m => m.symbol === selected_symbol) || markets[0];
+    const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
 
-    // Fetch the real, currently-active list of volatility index symbols from Deriv once on mount.
     useEffect(() => {
-        let is_cancelled = false;
-        const ws = new WebSocket(`wss://red.binaryws.com/websockets/v3?app_id=${APP_ID}`);
-
-        ws.onopen = () => {
-            ws.send(JSON.stringify({ active_symbols: 'brief' }));
-        };
-
-        ws.onmessage = event => {
-            if (is_cancelled) return;
-            const data = JSON.parse(event.data);
-
-            if (data.error) {
-                setMarketsError(data.error.message || 'Could not load markets.');
-                setMarketsLoading(false);
-                return;
-            }
-
-            if (data.msg_type === 'active_symbols' && data.active_symbols) {
-                let volatility_markets: TMarket[] = data.active_symbols
-                    .filter((s: any) => s.market === 'synthetic_index' && /volatility/i.test(s.display_name ?? ''))
-                    .map((s: any) => ({
-                        symbol: s.symbol,
-                        display_name: s.display_name,
-                        decimals: pipToDecimals(Number(s.pip)),
-                    }));
-
-                // Fallback: if nothing matched "volatility" by name, show all synthetic index markets instead.
-                if (volatility_markets.length === 0) {
-                    volatility_markets = data.active_symbols
-                        .filter((s: any) => s.market === 'synthetic_index')
-                        .map((s: any) => ({
-                            symbol: s.symbol,
-                            display_name: s.display_name,
-                            decimals: pipToDecimals(Number(s.pip)),
-                        }));
-                }
-
-                if (volatility_markets.length > 0) {
-                    setMarkets(volatility_markets);
-                    setSelectedSymbol(volatility_markets[0].symbol);
-                } else {
-                    const sample = (data.active_symbols || [])
-                        .slice(0, 6)
-                        .map((s: any) => `${s.symbol}(${s.market})`)
-                        .join(', ');
-                    setMarketsError(
-                        `No volatility index markets found. Total symbols returned: ${data.active_symbols.length}. Sample: ${sample || 'none'}`
-                    );
-                }
-                setMarketsLoading(false);
-                ws.close();
-            }
-        };
-
-        ws.onerror = () => {
-            if (!is_cancelled) {
-                setMarketsError('Could not connect to load the market list.');
-                setMarketsLoading(false);
-            }
-        };
-
-        return () => {
-            is_cancelled = true;
-            ws.close();
-        };
-    }, []);
-
-    // Stream live ticks + history for whichever symbol is selected.
-    useEffect(() => {
-        if (!selected_symbol) return undefined;
-
         let is_cancelled = false;
         setDigits([]);
         setCurrentPrice(null);
         setConnectionStatus('connecting');
         setApiError(null);
 
-        const ws = new WebSocket(`wss://red.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
 
         ws.onopen = () => {
             setConnectionStatus('connected');
@@ -148,14 +78,14 @@ const AnalysisTool = observer(() => {
 
             if (data.msg_type === 'history' && data.history) {
                 const prices: number[] = data.history.prices.map((p: string | number) => Number(p));
-                const last_digits = prices.map(p => getLastDigit(p, market?.decimals ?? 2));
+                const last_digits = prices.map(p => getLastDigit(p, market.decimals));
                 setDigits(last_digits);
                 setCurrentPrice(prices[prices.length - 1]);
             }
 
             if (data.msg_type === 'tick' && data.tick) {
                 const price = Number(data.tick.quote);
-                const digit = getLastDigit(price, market?.decimals ?? 2);
+                const digit = getLastDigit(price, market.decimals);
                 setCurrentPrice(price);
                 setDigits(prev => {
                     const next = [...prev, digit];
@@ -240,30 +170,6 @@ const AnalysisTool = observer(() => {
 
     const recent_digits = digits.slice(-60);
 
-    if (markets_loading) {
-        return (
-            <div className='analysis-tool'>
-                <h2>
-                    <Localize i18n_default_text='Analysis Tool' />
-                </h2>
-                <p>
-                    <Localize i18n_default_text='Loading markets…' />
-                </p>
-            </div>
-        );
-    }
-
-    if (markets_error || markets.length === 0) {
-        return (
-            <div className='analysis-tool'>
-                <h2>
-                    <Localize i18n_default_text='Analysis Tool' />
-                </h2>
-                <div className='analysis-tool__error'>⚠ {markets_error || 'No markets available.'}</div>
-            </div>
-        );
-    }
-
     return (
         <div className='analysis-tool'>
             <h2>
@@ -277,7 +183,7 @@ const AnalysisTool = observer(() => {
                     <Localize i18n_default_text='Select Market:' />
                 </label>
                 <select value={selected_symbol} onChange={e => setSelectedSymbol(e.target.value)}>
-                    {markets.map(m => (
+                    {MARKETS.map(m => (
                         <option key={m.symbol} value={m.symbol}>
                             {m.display_name}
                         </option>
@@ -286,7 +192,7 @@ const AnalysisTool = observer(() => {
             </div>
 
             <div className='analysis-tool__price'>
-                <span>{current_price !== null ? current_price.toFixed(market?.decimals ?? 2) : '—'}</span>
+                <span>{current_price !== null ? current_price.toFixed(market.decimals) : '—'}</span>
                 <span className={`analysis-tool__status analysis-tool__status--${connection_status}`}>
                     {connection_status === 'connected' && <Localize i18n_default_text='Live' />}
                     {connection_status === 'connecting' && <Localize i18n_default_text='Connecting…' />}
