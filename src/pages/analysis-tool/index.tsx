@@ -39,6 +39,8 @@ const AnalysisTool = observer(() => {
     const [over_under_barrier, setOverUnderBarrier] = useState(5);
     const [target_digit, setTargetDigit] = useState(0);
     const ws_ref = useRef<WebSocket | null>(null);
+    const reconnect_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [reconnect_tick, setReconnect_tick] = useState(0);
 
     const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
 
@@ -96,15 +98,34 @@ const AnalysisTool = observer(() => {
             // Connection issue — the UI will simply show no data until reconnected.
         };
 
+        // Deriv's API closes idle sockets after a while; ping periodically to keep the feed alive.
+        const ping_interval = setInterval(() => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ ping: 1 }));
+            }
+        }, 20000);
+
+        // If the connection drops for any reason, reconnect automatically after a short delay.
+        ws.onclose = () => {
+            clearInterval(ping_interval);
+            if (!is_cancelled) {
+                reconnect_timeout_ref.current = setTimeout(() => {
+                    setReconnect_tick(tick => tick + 1);
+                }, 3000);
+            }
+        };
+
         return () => {
             is_cancelled = true;
+            clearInterval(ping_interval);
+            if (reconnect_timeout_ref.current) clearTimeout(reconnect_timeout_ref.current);
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ forget_all: 'ticks' }));
             }
             ws.close();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected_symbol, ticks_window]);
+    }, [selected_symbol, ticks_window, reconnect_tick]);
 
     const stats = useMemo(() => {
         const total = digits.length;
@@ -332,4 +353,3 @@ function classNamesForDigit(digit: number, most_frequent: number, least_frequent
 }
 
 export default AnalysisTool;
-
