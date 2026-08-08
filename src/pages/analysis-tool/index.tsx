@@ -61,13 +61,24 @@ const AnalysisTool = observer(() => {
             }
 
             if (data.msg_type === 'active_symbols' && data.active_symbols) {
-                const volatility_markets: TMarket[] = data.active_symbols
-                    .filter((s: any) => s.market === 'synthetic_index' && /volatility/i.test(s.submarket ?? s.submarket_display_name ?? ''))
+                let volatility_markets: TMarket[] = data.active_symbols
+                    .filter((s: any) => s.market === 'synthetic_index' && /volatility/i.test(s.display_name ?? ''))
                     .map((s: any) => ({
                         symbol: s.symbol,
                         display_name: s.display_name,
                         decimals: pipToDecimals(Number(s.pip)),
                     }));
+
+                // Fallback: if nothing matched "volatility" by name, show all synthetic index markets instead.
+                if (volatility_markets.length === 0) {
+                    volatility_markets = data.active_symbols
+                        .filter((s: any) => s.market === 'synthetic_index')
+                        .map((s: any) => ({
+                            symbol: s.symbol,
+                            display_name: s.display_name,
+                            decimals: pipToDecimals(Number(s.pip)),
+                        }));
+                }
 
                 if (volatility_markets.length > 0) {
                     setMarkets(volatility_markets);
