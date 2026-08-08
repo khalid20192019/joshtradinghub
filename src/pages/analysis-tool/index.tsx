@@ -44,6 +44,7 @@ const AnalysisTool = observer(() => {
     const [connection_status, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
         'connecting'
     );
+    const [api_error, setApiError] = useState<string | null>(null);
 
     const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
 
@@ -52,6 +53,7 @@ const AnalysisTool = observer(() => {
         setDigits([]);
         setCurrentPrice(null);
         setConnectionStatus('connecting');
+        setApiError(null);
 
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
         ws_ref.current = ws;
@@ -74,6 +76,11 @@ const AnalysisTool = observer(() => {
         ws.onmessage = event => {
             if (is_cancelled) return;
             const data = JSON.parse(event.data);
+
+            if (data.error) {
+                setApiError(data.error.message || 'Unknown API error');
+                return;
+            }
 
             if (data.msg_type === 'history' && data.history) {
                 const prices: number[] = data.history.prices.map((p: string | number) => Number(p));
@@ -176,6 +183,8 @@ const AnalysisTool = observer(() => {
             <h2>
                 <Localize i18n_default_text='Analysis Tool' />
             </h2>
+
+            {api_error && <div className='analysis-tool__error'>⚠ {api_error}</div>}
 
             <div className='analysis-tool__field'>
                 <label>
