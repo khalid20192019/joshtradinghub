@@ -9,20 +9,6 @@ type TMarket = {
     decimals: number;
 };
 
-// Common volatility index symbols with their decimal precision (used to extract the last digit).
-const MARKETS: TMarket[] = [
-    { symbol: 'R_10', display_name: 'Volatility 10 Index', decimals: 3 },
-    { symbol: 'R_25', display_name: 'Volatility 25 Index', decimals: 3 },
-    { symbol: 'R_50', display_name: 'Volatility 50 Index', decimals: 4 },
-    { symbol: 'R_75', display_name: 'Volatility 75 Index', decimals: 4 },
-    { symbol: 'R_100', display_name: 'Volatility 100 Index', decimals: 2 },
-    { symbol: '1HZ10V', display_name: 'Volatility 10 (1s) Index', decimals: 2 },
-    { symbol: '1HZ25V', display_name: 'Volatility 25 (1s) Index', decimals: 2 },
-    { symbol: '1HZ50V', display_name: 'Volatility 50 (1s) Index', decimals: 2 },
-    { symbol: '1HZ75V', display_name: 'Volatility 75 (1s) Index', decimals: 2 },
-    { symbol: '1HZ100V', display_name: 'Volatility 100 (1s) Index', decimals: 2 },
-];
-
 const APP_ID = 1089; // Deriv's public demo app_id, used for read-only market data.
 
 const getLastDigit = (price: number, decimals: number): number => {
@@ -30,15 +16,22 @@ const getLastDigit = (price: number, decimals: number): number => {
     return Number(fixed[fixed.length - 1]);
 };
 
+const pipToDecimals = (pip: number): number => {
+    if (!pip || pip <= 0) return 2;
+    return Math.max(0, Math.round(-Math.log10(pip)));
+};
+
 const AnalysisTool = observer(() => {
-    const [selected_symbol, setSelectedSymbol] = useState('R_75');
+    const [markets, setMarkets] = useState<TMarket[]>([]);
+    const [markets_loading, setMarketsLoading] = useState(true);
+    const [markets_error, setMarketsError] = useState<string | null>(null);
+    const [selected_symbol, setSelectedSymbol] = useState('');
     const [ticks_window, setTicksWindow] = useState(1000);
     const [ticks_window_input, setTicksWindowInput] = useState('1000');
     const [current_price, setCurrentPrice] = useState<number | null>(null);
     const [digits, setDigits] = useState<number[]>([]);
     const [over_under_barrier, setOverUnderBarrier] = useState(5);
     const [target_digit, setTargetDigit] = useState(0);
-    const ws_ref = useRef<WebSocket | null>(null);
     const reconnect_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [reconnect_tick, setReconnect_tick] = useState(0);
     const [connection_status, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
@@ -46,9 +39,64 @@ const AnalysisTool = observer(() => {
     );
     const [api_error, setApiError] = useState<string | null>(null);
 
-    const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
+    const market = markets.find(m => m.symbol === selected_symbol) || markets[0];
 
+    // Fetch the real, currently-active list of volatility index symbols from Deriv once on mount.
     useEffect(() => {
+        let is_cancelled = false;
+        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic' }));
+        };
+
+        ws.onmessage = event => {
+            if (is_cancelled) return;
+            const data = JSON.parse(event.data);
+
+            if (data.error) {
+                setMarketsError(data.error.message || 'Could not load markets.');
+                setMarketsLoading(false);
+                return;
+            }
+
+            if (data.msg_type === 'active_symbols' && data.active_symbols) {
+                const volatility_markets: TMarket[] = data.active_symbols
+                    .filter((s: any) => s.market === 'synthetic_index' && /volatility/i.test(s.submarket ?? s.submarket_display_name ?? ''))
+                    .map((s: any) => ({
+                        symbol: s.symbol,
+                        display_name: s.display_name,
+                        decimals: pipToDecimals(Number(s.pip)),
+                    }));
+
+                if (volatility_markets.length > 0) {
+                    setMarkets(volatility_markets);
+                    setSelectedSymbol(volatility_markets[0].symbol);
+                } else {
+                    setMarketsError('No volatility index markets were returned by the API.');
+                }
+                setMarketsLoading(false);
+                ws.close();
+            }
+        };
+
+        ws.onerror = () => {
+            if (!is_cancelled) {
+                setMarketsError('Could not connect to load the market list.');
+                setMarketsLoading(false);
+            }
+        };
+
+        return () => {
+            is_cancelled = true;
+            ws.close();
+        };
+    }, []);
+
+    // Stream live ticks + history for whichever symbol is selected.
+    useEffect(() => {
+        if (!selected_symbol) return undefined;
+
         let is_cancelled = false;
         setDigits([]);
         setCurrentPrice(null);
@@ -56,7 +104,6 @@ const AnalysisTool = observer(() => {
         setApiError(null);
 
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
-        ws_ref.current = ws;
 
         ws.onopen = () => {
             setConnectionStatus('connected');
@@ -84,14 +131,14 @@ const AnalysisTool = observer(() => {
 
             if (data.msg_type === 'history' && data.history) {
                 const prices: number[] = data.history.prices.map((p: string | number) => Number(p));
-                const last_digits = prices.map(p => getLastDigit(p, market.decimals));
+                const last_digits = prices.map(p => getLastDigit(p, market?.decimals ?? 2));
                 setDigits(last_digits);
                 setCurrentPrice(prices[prices.length - 1]);
             }
 
             if (data.msg_type === 'tick' && data.tick) {
                 const price = Number(data.tick.quote);
-                const digit = getLastDigit(price, market.decimals);
+                const digit = getLastDigit(price, market?.decimals ?? 2);
                 setCurrentPrice(price);
                 setDigits(prev => {
                     const next = [...prev, digit];
@@ -102,17 +149,15 @@ const AnalysisTool = observer(() => {
         };
 
         ws.onerror = () => {
-            // Connection issue — the UI will simply show no data until reconnected.
+            // Handled via onclose below.
         };
 
-        // Deriv's API closes idle sockets after a while; ping periodically to keep the feed alive.
         const ping_interval = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({ ping: 1 }));
             }
         }, 20000);
 
-        // If the connection drops for any reason, reconnect automatically after a short delay.
         ws.onclose = () => {
             clearInterval(ping_interval);
             setConnectionStatus('disconnected');
@@ -178,6 +223,30 @@ const AnalysisTool = observer(() => {
 
     const recent_digits = digits.slice(-60);
 
+    if (markets_loading) {
+        return (
+            <div className='analysis-tool'>
+                <h2>
+                    <Localize i18n_default_text='Analysis Tool' />
+                </h2>
+                <p>
+                    <Localize i18n_default_text='Loading markets…' />
+                </p>
+            </div>
+        );
+    }
+
+    if (markets_error || markets.length === 0) {
+        return (
+            <div className='analysis-tool'>
+                <h2>
+                    <Localize i18n_default_text='Analysis Tool' />
+                </h2>
+                <div className='analysis-tool__error'>⚠ {markets_error || 'No markets available.'}</div>
+            </div>
+        );
+    }
+
     return (
         <div className='analysis-tool'>
             <h2>
@@ -191,7 +260,7 @@ const AnalysisTool = observer(() => {
                     <Localize i18n_default_text='Select Market:' />
                 </label>
                 <select value={selected_symbol} onChange={e => setSelectedSymbol(e.target.value)}>
-                    {MARKETS.map(m => (
+                    {markets.map(m => (
                         <option key={m.symbol} value={m.symbol}>
                             {m.display_name}
                         </option>
@@ -200,7 +269,7 @@ const AnalysisTool = observer(() => {
             </div>
 
             <div className='analysis-tool__price'>
-                <span>{current_price !== null ? current_price.toFixed(market.decimals) : '—'}</span>
+                <span>{current_price !== null ? current_price.toFixed(market?.decimals ?? 2) : '—'}</span>
                 <span className={`analysis-tool__status analysis-tool__status--${connection_status}`}>
                     {connection_status === 'connected' && <Localize i18n_default_text='Live' />}
                     {connection_status === 'connecting' && <Localize i18n_default_text='Connecting…' />}
@@ -230,10 +299,7 @@ const AnalysisTool = observer(() => {
             </div>
             <div className='analysis-tool__digits'>
                 {stats.digit_counts.map((count, digit) => (
-                    <div
-                        key={digit}
-                        className={classNamesForDigit(digit, most_frequent_digit, least_frequent_digit)}
-                    >
+                    <div key={digit} className={classNamesForDigit(digit, most_frequent_digit, least_frequent_digit)}>
                         <span className='analysis-tool__digit-value'>{digit}</span>
                         <span className='analysis-tool__digit-pct'>{pct(count)}%</span>
                     </div>
@@ -252,7 +318,10 @@ const AnalysisTool = observer(() => {
                         {stats.even_count} <small>({pct(stats.even_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--even' style={{ width: `${pct(stats.even_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--even'
+                            style={{ width: `${pct(stats.even_count)}%` }}
+                        />
                     </div>
                 </div>
                 <div className='analysis-tool__stat-card'>
@@ -263,14 +332,24 @@ const AnalysisTool = observer(() => {
                         {stats.odd_count} <small>({pct(stats.odd_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--odd' style={{ width: `${pct(stats.odd_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--odd'
+                            style={{ width: `${pct(stats.odd_count)}%` }}
+                        />
                     </div>
                 </div>
             </div>
 
             <div className='analysis-tool__recent'>
                 {recent_digits.map((d, i) => (
-                    <span key={i} className={d % 2 === 0 ? 'analysis-tool__pill analysis-tool__pill--even' : 'analysis-tool__pill analysis-tool__pill--odd'}>
+                    <span
+                        key={i}
+                        className={
+                            d % 2 === 0
+                                ? 'analysis-tool__pill analysis-tool__pill--even'
+                                : 'analysis-tool__pill analysis-tool__pill--odd'
+                        }
+                    >
                         {d % 2 === 0 ? 'E' : 'O'}
                     </span>
                 ))}
@@ -295,7 +374,10 @@ const AnalysisTool = observer(() => {
                         {stats.under_count} <small>({pct(stats.under_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--even' style={{ width: `${pct(stats.under_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--even'
+                            style={{ width: `${pct(stats.under_count)}%` }}
+                        />
                     </div>
                 </div>
                 <div className='analysis-tool__stat-card'>
@@ -306,7 +388,10 @@ const AnalysisTool = observer(() => {
                         {stats.equal_count} <small>({pct(stats.equal_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--neutral' style={{ width: `${pct(stats.equal_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--neutral'
+                            style={{ width: `${pct(stats.equal_count)}%` }}
+                        />
                     </div>
                 </div>
                 <div className='analysis-tool__stat-card'>
@@ -317,7 +402,10 @@ const AnalysisTool = observer(() => {
                         {stats.over_count} <small>({pct(stats.over_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--odd' style={{ width: `${pct(stats.over_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--odd'
+                            style={{ width: `${pct(stats.over_count)}%` }}
+                        />
                     </div>
                 </div>
             </div>
@@ -341,7 +429,10 @@ const AnalysisTool = observer(() => {
                         {stats.matches_count} <small>({pct(stats.matches_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--even' style={{ width: `${pct(stats.matches_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--even'
+                            style={{ width: `${pct(stats.matches_count)}%` }}
+                        />
                     </div>
                 </div>
                 <div className='analysis-tool__stat-card'>
@@ -352,7 +443,10 @@ const AnalysisTool = observer(() => {
                         {stats.differs_count} <small>({pct(stats.differs_count)}%)</small>
                     </h3>
                     <div className='analysis-tool__bar'>
-                        <div className='analysis-tool__bar-fill analysis-tool__bar-fill--odd' style={{ width: `${pct(stats.differs_count)}%` }} />
+                        <div
+                            className='analysis-tool__bar-fill analysis-tool__bar-fill--odd'
+                            style={{ width: `${pct(stats.differs_count)}%` }}
+                        />
                     </div>
                 </div>
             </div>
