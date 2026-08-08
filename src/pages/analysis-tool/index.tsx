@@ -47,7 +47,7 @@ const AnalysisTool = observer(() => {
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
 
         ws.onopen = () => {
-            ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic' }));
+            ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic', landing_company_short: 'svg' }));
         };
 
         ws.onmessage = event => {
@@ -84,7 +84,13 @@ const AnalysisTool = observer(() => {
                     setMarkets(volatility_markets);
                     setSelectedSymbol(volatility_markets[0].symbol);
                 } else {
-                    setMarketsError('No volatility index markets were returned by the API.');
+                    const sample = (data.active_symbols || [])
+                        .slice(0, 6)
+                        .map((s: any) => `${s.symbol}(${s.market})`)
+                        .join(', ');
+                    setMarketsError(
+                        `No volatility index markets found. Total symbols returned: ${data.active_symbols.length}. Sample: ${sample || 'none'}`
+                    );
                 }
                 setMarketsLoading(false);
                 ws.close();
