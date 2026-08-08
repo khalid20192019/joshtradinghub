@@ -44,7 +44,7 @@ const AnalysisTool = observer(() => {
     // Fetch the real, currently-active list of volatility index symbols from Deriv once on mount.
     useEffect(() => {
         let is_cancelled = false;
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+        const ws = new WebSocket(`wss://red.binaryws.com/websockets/v3?app_id=${APP_ID}`);
 
         ws.onopen = () => {
             ws.send(JSON.stringify({ active_symbols: 'brief' }));
@@ -120,7 +120,7 @@ const AnalysisTool = observer(() => {
         setConnectionStatus('connecting');
         setApiError(null);
 
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+        const ws = new WebSocket(`wss://red.binaryws.com/websockets/v3?app_id=${APP_ID}`);
 
         ws.onopen = () => {
             setConnectionStatus('connected');
