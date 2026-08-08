@@ -10,7 +10,13 @@ type TMarket = {
     decimals: number;
 };
 
-const MARKETS: TMarket[] = [
+const pipToDecimals = (pip: number): number => {
+    if (!pip || pip <= 0) return 2;
+    return Math.max(0, Math.round(-Math.log10(pip)));
+};
+
+// Fallback list, used only if the live market fetch fails for some reason.
+const FALLBACK_MARKETS: TMarket[] = [
     { symbol: 'R_10', display_name: 'Volatility 10 Index', decimals: 3 },
     { symbol: 'R_25', display_name: 'Volatility 25 Index', decimals: 3 },
     { symbol: 'R_50', display_name: 'Volatility 50 Index', decimals: 4 },
@@ -24,6 +30,8 @@ const getLastDigit = (price: number, decimals: number): number => {
 };
 
 const AnalysisTool = observer(() => {
+    const [markets, setMarkets] = useState<TMarket[]>(FALLBACK_MARKETS);
+    const [markets_loading, setMarketsLoading] = useState(true);
     const [selected_symbol, setSelectedSymbol] = useState('R_10');
     const [ticks_window, setTicksWindow] = useState(1000);
     const [ticks_window_input, setTicksWindowInput] = useState('1000');
@@ -36,9 +44,58 @@ const AnalysisTool = observer(() => {
     );
     const [api_error, setApiError] = useState<string | null>(null);
 
-    const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
+    const market = markets.find(m => m.symbol === selected_symbol) || markets[0];
+
+    // Fetch the real, current list of Volatility + Jump index symbols using the app's
+    // own working connection (the same one Charts already uses successfully).
+    useEffect(() => {
+        let is_cancelled = false;
+        (async () => {
+            try {
+                const api = api_base?.api;
+                if (!api) return;
+
+                const response = await api.send({ active_symbols: 'brief', product_type: 'basic' });
+                if (is_cancelled || !response?.active_symbols) return;
+
+                const synthetic = response.active_symbols.filter((s: any) => s.market === 'synthetic_index');
+
+                const volatility = synthetic
+                    .filter((s: any) => /volatility/i.test(s.display_name ?? ''))
+                    .map((s: any) => ({
+                        symbol: s.symbol,
+                        display_name: s.display_name,
+                        decimals: pipToDecimals(Number(s.pip)),
+                    }));
+
+                const jump = synthetic
+                    .filter((s: any) => /jump/i.test(s.display_name ?? ''))
+                    .map((s: any) => ({
+                        symbol: s.symbol,
+                        display_name: s.display_name,
+                        decimals: pipToDecimals(Number(s.pip)),
+                    }));
+
+                const combined = [...volatility, ...jump];
+                if (combined.length > 0) {
+                    setMarkets(combined);
+                    setSelectedSymbol(combined[0].symbol);
+                }
+            } catch {
+                // Keep using the fallback list if this fails for any reason.
+            } finally {
+                if (!is_cancelled) setMarketsLoading(false);
+            }
+        })();
+
+        return () => {
+            is_cancelled = true;
+        };
+    }, []);
 
     useEffect(() => {
+        if (markets_loading) return undefined;
+
         let is_cancelled = false;
         let subscription: { unsubscribe: () => void } | null = null;
         setDigits([]);
@@ -109,7 +166,7 @@ const AnalysisTool = observer(() => {
             is_cancelled = true;
             subscription?.unsubscribe();
         };
-    }, [selected_symbol, ticks_window, market.decimals]);
+    }, [selected_symbol, ticks_window, market.decimals, markets_loading]);
 
     const stats = useMemo(() => {
         const total = digits.length;
@@ -167,7 +224,7 @@ const AnalysisTool = observer(() => {
                     <Localize i18n_default_text='Select Market:' />
                 </label>
                 <select value={selected_symbol} onChange={e => setSelectedSymbol(e.target.value)}>
-                    {MARKETS.map(m => (
+                    {markets.map(m => (
                         <option key={m.symbol} value={m.symbol}>
                             {m.display_name}
                         </option>
