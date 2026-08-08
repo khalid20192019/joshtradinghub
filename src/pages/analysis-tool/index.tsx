@@ -1,5 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { observer } from 'mobx-react-lite';
+import { api_base } from '@/external/bot-skeleton';
 import { Localize } from '@deriv-com/translations';
 import './analysis-tool.scss';
 
@@ -9,8 +10,6 @@ type TMarket = {
     decimals: number;
 };
 
-// The 5 classic volatility indices — long-standing, stable symbol codes (unlike the newer
-// 1-second variants, whose codes have changed over time and caused "invalid symbol" errors).
 const MARKETS: TMarket[] = [
     { symbol: 'R_10', display_name: 'Volatility 10 Index', decimals: 3 },
     { symbol: 'R_25', display_name: 'Volatility 25 Index', decimals: 3 },
@@ -18,8 +17,6 @@ const MARKETS: TMarket[] = [
     { symbol: 'R_75', display_name: 'Volatility 75 Index', decimals: 4 },
     { symbol: 'R_100', display_name: 'Volatility 100 Index', decimals: 2 },
 ];
-
-const APP_ID = 1089; // Deriv's public demo app_id, used for read-only market data.
 
 const getLastDigit = (price: number, decimals: number): number => {
     const fixed = price.toFixed(decimals);
@@ -34,8 +31,6 @@ const AnalysisTool = observer(() => {
     const [digits, setDigits] = useState<number[]>([]);
     const [over_under_barrier, setOverUnderBarrier] = useState(5);
     const [target_digit, setTargetDigit] = useState(0);
-    const reconnect_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const [reconnect_tick, setReconnect_tick] = useState(0);
     const [connection_status, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
         'connecting'
     );
@@ -45,98 +40,76 @@ const AnalysisTool = observer(() => {
 
     useEffect(() => {
         let is_cancelled = false;
+        let subscription: { unsubscribe: () => void } | null = null;
         setDigits([]);
         setCurrentPrice(null);
         setConnectionStatus('connecting');
         setApiError(null);
 
-        const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
+        (async () => {
+            try {
+                // Reuse the app's own already-connected Deriv API instance (same one Charts uses)
+                // instead of opening a separate connection.
+                const api = api_base?.api;
+                if (!api) {
+                    setApiError('App connection not ready yet — try switching tabs and back.');
+                    return;
+                }
 
-        ws.onopen = () => {
-            setConnectionStatus('connected');
-            ws.send(
-                JSON.stringify({
+                const history_response = await api.send({
                     ticks_history: selected_symbol,
                     count: ticks_window,
                     end: 'latest',
                     style: 'ticks',
-                    subscribe: 1,
-                })
-            );
-        };
-
-        ws.onmessage = event => {
-            if (is_cancelled) return;
-            const data = JSON.parse(event.data);
-
-            if (data.error) {
-                const msg = data.error.message || 'Unknown API error';
-                if (/invalid/i.test(msg)) {
-                    // This symbol isn't available right now — try the next one in the list automatically.
-                    const current_index = MARKETS.findIndex(m => m.symbol === selected_symbol);
-                    const next_market = MARKETS[current_index + 1];
-                    if (next_market) {
-                        setApiError(`${market.display_name} unavailable, trying ${next_market.display_name}…`);
-                        setSelectedSymbol(next_market.symbol);
-                    } else {
-                        setApiError('None of the volatility index symbols are currently available.');
-                    }
-                } else {
-                    setApiError(msg);
-                }
-                return;
-            }
-
-            if (data.msg_type === 'history' && data.history) {
-                const prices: number[] = data.history.prices.map((p: string | number) => Number(p));
-                const last_digits = prices.map(p => getLastDigit(p, market.decimals));
-                setDigits(last_digits);
-                setCurrentPrice(prices[prices.length - 1]);
-            }
-
-            if (data.msg_type === 'tick' && data.tick) {
-                const price = Number(data.tick.quote);
-                const digit = getLastDigit(price, market.decimals);
-                setCurrentPrice(price);
-                setDigits(prev => {
-                    const next = [...prev, digit];
-                    if (next.length > ticks_window) next.shift();
-                    return next;
                 });
-            }
-        };
 
-        ws.onerror = () => {
-            // Handled via onclose below.
-        };
+                if (is_cancelled) return;
 
-        const ping_interval = setInterval(() => {
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ ping: 1 }));
-            }
-        }, 20000);
+                if (history_response?.error) {
+                    setApiError(history_response.error.message || 'Unknown API error');
+                    return;
+                }
 
-        ws.onclose = () => {
-            clearInterval(ping_interval);
-            setConnectionStatus('disconnected');
-            if (!is_cancelled) {
-                reconnect_timeout_ref.current = setTimeout(() => {
-                    setReconnect_tick(tick => tick + 1);
-                }, 3000);
+                setConnectionStatus('connected');
+                const prices: number[] = (history_response?.history?.prices || []).map((p: string | number) =>
+                    Number(p)
+                );
+                setDigits(prices.map(p => getLastDigit(p, market.decimals)));
+                setCurrentPrice(prices[prices.length - 1] ?? null);
+
+                const tick_stream = api.subscribe({ ticks: selected_symbol });
+                subscription = tick_stream.subscribe({
+                    next: (response: any) => {
+                        if (is_cancelled) return;
+                        if (response?.error) {
+                            setApiError(response.error.message || 'Unknown API error');
+                            return;
+                        }
+                        if (response?.tick) {
+                            const price = Number(response.tick.quote);
+                            const digit = getLastDigit(price, market.decimals);
+                            setCurrentPrice(price);
+                            setDigits(prev => {
+                                const next = [...prev, digit];
+                                if (next.length > ticks_window) next.shift();
+                                return next;
+                            });
+                        }
+                    },
+                    error: () => {
+                        if (!is_cancelled) setConnectionStatus('disconnected');
+                    },
+                });
+            } catch (err: any) {
+                if (!is_cancelled) setApiError(err?.message || 'Failed to load market data.');
             }
-        };
+        })();
 
         return () => {
             is_cancelled = true;
-            clearInterval(ping_interval);
-            if (reconnect_timeout_ref.current) clearTimeout(reconnect_timeout_ref.current);
-            if (ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ forget_all: 'ticks' }));
-            }
-            ws.close();
+            subscription?.unsubscribe();
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selected_symbol, ticks_window, reconnect_tick]);
+    }, [selected_symbol, ticks_window, market.decimals]);
 
     const stats = useMemo(() => {
         const total = digits.length;
