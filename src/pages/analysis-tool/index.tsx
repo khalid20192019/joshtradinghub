@@ -27,7 +27,7 @@ const getLastDigit = (price: number, decimals: number): number => {
 };
 
 const AnalysisTool = observer(() => {
-    const [selected_symbol, setSelectedSymbol] = useState('R_75');
+    const [selected_symbol, setSelectedSymbol] = useState('R_10');
     const [ticks_window, setTicksWindow] = useState(1000);
     const [ticks_window_input, setTicksWindowInput] = useState('1000');
     const [current_price, setCurrentPrice] = useState<number | null>(null);
@@ -57,10 +57,8 @@ const AnalysisTool = observer(() => {
             ws.send(
                 JSON.stringify({
                     ticks_history: selected_symbol,
-                    adjust_start_time: 1,
                     count: ticks_window,
                     end: 'latest',
-                    start: 1,
                     style: 'ticks',
                     subscribe: 1,
                 })
@@ -72,7 +70,20 @@ const AnalysisTool = observer(() => {
             const data = JSON.parse(event.data);
 
             if (data.error) {
-                setApiError(data.error.message || 'Unknown API error');
+                const msg = data.error.message || 'Unknown API error';
+                if (/invalid/i.test(msg)) {
+                    // This symbol isn't available right now — try the next one in the list automatically.
+                    const current_index = MARKETS.findIndex(m => m.symbol === selected_symbol);
+                    const next_market = MARKETS[current_index + 1];
+                    if (next_market) {
+                        setApiError(`${market.display_name} unavailable, trying ${next_market.display_name}…`);
+                        setSelectedSymbol(next_market.symbol);
+                    } else {
+                        setApiError('None of the volatility index symbols are currently available.');
+                    }
+                } else {
+                    setApiError(msg);
+                }
                 return;
             }
 
