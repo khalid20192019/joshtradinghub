@@ -47,7 +47,7 @@ const AnalysisTool = observer(() => {
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
 
         ws.onopen = () => {
-            ws.send(JSON.stringify({ active_symbols: 'brief', product_type: 'basic', landing_company_short: 'svg' }));
+            ws.send(JSON.stringify({ active_symbols: 'brief' }));
         };
 
         ws.onmessage = event => {
