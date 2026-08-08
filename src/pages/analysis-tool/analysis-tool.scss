@@ -56,6 +56,28 @@
         }
     }
 
+    &__status {
+        font-size: 1.1rem;
+        font-weight: 600;
+        padding: 0.3rem 0.8rem;
+        border-radius: 12px;
+
+        &--connected {
+            color: #3ddc84;
+            background: rgba(61, 220, 132, 0.12);
+        }
+
+        &--connecting {
+            color: #ffb020;
+            background: rgba(255, 176, 32, 0.12);
+        }
+
+        &--disconnected {
+            color: #ff4d4d;
+            background: rgba(255, 77, 77, 0.12);
+        }
+    }
+
     &__section-title {
         font-size: 1.3rem;
         font-weight: 600;
