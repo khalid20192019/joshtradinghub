@@ -8,6 +8,16 @@
         color: #ffffff;
     }
 
+    &__error {
+        background: rgba(255, 77, 77, 0.12);
+        border: 1px solid #ff4d4d;
+        color: #ff4d4d;
+        padding: 1rem 1.2rem;
+        border-radius: 6px;
+        margin-bottom: 1.6rem;
+        font-size: 1.2rem;
+    }
+
     &__field {
         display: flex;
         align-items: center;
