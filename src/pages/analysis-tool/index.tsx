@@ -32,6 +32,7 @@ const getLastDigit = (price: number, decimals: number): number => {
 const AnalysisTool = observer(() => {
     const [markets, setMarkets] = useState<TMarket[]>(FALLBACK_MARKETS);
     const [markets_loading, setMarketsLoading] = useState(true);
+    const [market_fetch_debug, setMarketFetchDebug] = useState<string | null>(null);
     const [selected_symbol, setSelectedSymbol] = useState('R_10');
     const [ticks_window, setTicksWindow] = useState(1000);
     const [ticks_window_input, setTicksWindowInput] = useState('1000');
@@ -53,10 +54,20 @@ const AnalysisTool = observer(() => {
         (async () => {
             try {
                 const api = api_base?.api;
-                if (!api) return;
+                if (!api) {
+                    setMarketFetchDebug('api_base.api not available yet');
+                    return;
+                }
 
                 const response = await api.send({ active_symbols: 'brief', product_type: 'basic' });
-                if (is_cancelled || !response?.active_symbols) return;
+                if (is_cancelled) return;
+
+                if (!response?.active_symbols) {
+                    setMarketFetchDebug(
+                        `No active_symbols in response. Response error: ${response?.error?.message || 'none'}`
+                    );
+                    return;
+                }
 
                 const synthetic = response.active_symbols.filter((s: any) => s.market === 'synthetic_index');
 
@@ -77,12 +88,15 @@ const AnalysisTool = observer(() => {
                     }));
 
                 const combined = [...volatility, ...jump];
+                setMarketFetchDebug(
+                    `Total symbols: ${response.active_symbols.length}, synthetic_index: ${synthetic.length}, volatility matched: ${volatility.length}, jump matched: ${jump.length}`
+                );
                 if (combined.length > 0) {
                     setMarkets(combined);
                     setSelectedSymbol(combined[0].symbol);
                 }
-            } catch {
-                // Keep using the fallback list if this fails for any reason.
+            } catch (err: any) {
+                setMarketFetchDebug(`Fetch threw: ${err?.message || String(err)}`);
             } finally {
                 if (!is_cancelled) setMarketsLoading(false);
             }
@@ -218,6 +232,11 @@ const AnalysisTool = observer(() => {
             </h2>
 
             {api_error && <div className='analysis-tool__error'>⚠ {api_error}</div>}
+            {market_fetch_debug && (
+                <div className='analysis-tool__error' style={{ borderColor: '#ffb020', color: '#ffb020' }}>
+                    ℹ {market_fetch_debug}
+                </div>
+            )}
 
             <div className='analysis-tool__field'>
                 <label>
