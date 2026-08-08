@@ -41,6 +41,9 @@ const AnalysisTool = observer(() => {
     const ws_ref = useRef<WebSocket | null>(null);
     const reconnect_timeout_ref = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [reconnect_tick, setReconnect_tick] = useState(0);
+    const [connection_status, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>(
+        'connecting'
+    );
 
     const market = MARKETS.find(m => m.symbol === selected_symbol) || MARKETS[0];
 
@@ -48,17 +51,22 @@ const AnalysisTool = observer(() => {
         let is_cancelled = false;
         setDigits([]);
         setCurrentPrice(null);
+        setConnectionStatus('connecting');
 
         const ws = new WebSocket(`wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`);
         ws_ref.current = ws;
 
         ws.onopen = () => {
+            setConnectionStatus('connected');
             ws.send(
                 JSON.stringify({
                     ticks_history: selected_symbol,
+                    adjust_start_time: 1,
                     count: ticks_window,
                     end: 'latest',
+                    start: 1,
                     style: 'ticks',
+                    subscribe: 1,
                 })
             );
         };
@@ -68,22 +76,14 @@ const AnalysisTool = observer(() => {
             const data = JSON.parse(event.data);
 
             if (data.msg_type === 'history' && data.history) {
-                const prices: number[] = data.history.prices;
+                const prices: number[] = data.history.prices.map((p: string | number) => Number(p));
                 const last_digits = prices.map(p => getLastDigit(p, market.decimals));
                 setDigits(last_digits);
                 setCurrentPrice(prices[prices.length - 1]);
-
-                // Once history is loaded, subscribe to live ticks.
-                ws.send(
-                    JSON.stringify({
-                        ticks: selected_symbol,
-                        subscribe: 1,
-                    })
-                );
             }
 
             if (data.msg_type === 'tick' && data.tick) {
-                const price = data.tick.quote;
+                const price = Number(data.tick.quote);
                 const digit = getLastDigit(price, market.decimals);
                 setCurrentPrice(price);
                 setDigits(prev => {
@@ -108,6 +108,7 @@ const AnalysisTool = observer(() => {
         // If the connection drops for any reason, reconnect automatically after a short delay.
         ws.onclose = () => {
             clearInterval(ping_interval);
+            setConnectionStatus('disconnected');
             if (!is_cancelled) {
                 reconnect_timeout_ref.current = setTimeout(() => {
                     setReconnect_tick(tick => tick + 1);
@@ -191,6 +192,11 @@ const AnalysisTool = observer(() => {
 
             <div className='analysis-tool__price'>
                 <span>{current_price !== null ? current_price.toFixed(market.decimals) : '—'}</span>
+                <span className={`analysis-tool__status analysis-tool__status--${connection_status}`}>
+                    {connection_status === 'connected' && <Localize i18n_default_text='Live' />}
+                    {connection_status === 'connecting' && <Localize i18n_default_text='Connecting…' />}
+                    {connection_status === 'disconnected' && <Localize i18n_default_text='Reconnecting…' />}
+                </span>
                 <span className='analysis-tool__price-count'>{stats.total}</span>
             </div>
 
