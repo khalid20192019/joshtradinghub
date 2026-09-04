@@ -61,6 +61,22 @@ describe('LogoMark', () => {
         expect(screen.getByText('D')).toBeInTheDocument();
     });
 
+    it('hides the name text when preview showAppName is false', () => {
+        process.env.NEXT_PUBLIC_APP_BUILD = 'true';
+        const {
+            setPreviewShowAppName,
+        } = require('@/utils/live-branding-store') as typeof import('@/utils/live-branding-store');
+        const { act } = require('@testing-library/react') as typeof import('@testing-library/react');
+        act(() => {
+            setPreviewShowAppName(false);
+        });
+        render(<LogoMark />);
+        expect(screen.queryByText('Deriv Trading Bot')).not.toBeInTheDocument();
+        act(() => {
+            setPreviewShowAppName(true);
+        });
+    });
+
     it('renders only the letter badge when brand.config.json records no logo (logo_path: null)', () => {
         mockLogoCandidates = [];
         render(<LogoMark />);

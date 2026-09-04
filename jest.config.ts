@@ -189,12 +189,13 @@ const config: Config = {
     // A map from regular expressions to paths to transformers
     transform: {
         '^.+\\.(ts|tsx)$': 'ts-jest',
-        '^.+\\.(js|jsx)$': 'babel-jest',
+        '^.+\\.(js|jsx|mjs|cjs)$': 'babel-jest',
         '^.+\\.xml$': 'jest-transform-stub',
     },
 
     // An array of regexp pattern strings that are matched against all source file paths, matched files will skip transformation
-    transformIgnorePatterns: ['/node_modules/(?!@deriv-com/ui).+\\.js$'],
+    // react-router@8 ships ESM-only; force babel-jest to transform it (and its cookie-es dep).
+    transformIgnorePatterns: ['/node_modules/(?!(@deriv-com/ui|react-router|cookie-es)/)'],
 
     // An array of regexp pattern strings that are matched against all modules before the module loader will automatically return a mock for them
     // unmockedModulePathPatterns: undefined,

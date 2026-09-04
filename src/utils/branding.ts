@@ -5,6 +5,16 @@ import brandConfig from '../../brand.config.json';
 // brand.config.json (see getLogoCandidates below).
 export const LOGO_CANDIDATES = ['/logo.png', '/logo.jpg', '/logo.jpeg', '/logo.webp'];
 
+type PlatformBrand = {
+    name?: string;
+    show_name?: boolean;
+    logo_path?: string | null;
+};
+
+function getPlatform(): PlatformBrand | undefined {
+    return (brandConfig as { platform?: PlatformBrand } | undefined)?.platform;
+}
+
 /**
  * Resolves which logo paths are worth requesting. The BFF records the injected
  * logo's exact public path in brand.config.json (platform.logo_path) at deploy
@@ -15,19 +25,29 @@ export const LOGO_CANDIDATES = ['/logo.png', '/logo.jpg', '/logo.jpeg', '/logo.w
  * old behaviour.
  */
 export function getLogoCandidates(): string[] {
-    // Widened view of the JSON import: the committed brand.config.json has no
-    // logo_path field (the BFF adds it at deploy time), so type it optionally.
-    const platform: { name?: string; logo_path?: string | null } = brandConfig?.platform ?? {};
+    const platform = getPlatform() ?? {};
     if (platform.logo_path === undefined) return LOGO_CANDIDATES;
     return platform.logo_path ? [platform.logo_path] : [];
 }
 
 /**
- * Resolves the partner app name. The BFF injects NEXT_PUBLIC_DERIV_APP_NAME into
- * .env.production at deploy time (the same var the Next.js templates read); falls back
- * to brand.config.json platform.name, then a sensible default. The live App Builder
- * preview name (PREVIEW_BRANDING) is handled separately via the preview-app-name store.
+ * Resolves the partner app name for the header / title / favicon.
+ * Preference: NEXT_PUBLIC_DERIV_APP_NAME → brand.config.json `platform.name`
+ * → 'Deriv Bot'. Env wins so partners editing `.env` after a source download
+ * take effect (App Builder also writes platform.name; env is the override).
+ * Configure/OAuth registration name is separate and is not written here.
  */
 export function getAppName(): string {
-    return process.env.NEXT_PUBLIC_DERIV_APP_NAME || brandConfig?.platform?.name || 'Deriv Bot';
+    const fromEnv = process.env.NEXT_PUBLIC_DERIV_APP_NAME?.trim();
+    if (fromEnv) return fromEnv;
+    const fromConfig = getPlatform()?.name?.trim();
+    return fromConfig || 'Deriv Bot';
+}
+
+/**
+ * Whether the header should render the name text next to the logo.
+ * brand.config.json `platform.show_name` defaults to true when absent.
+ */
+export function getShowAppName(): boolean {
+    return getPlatform()?.show_name !== false;
 }

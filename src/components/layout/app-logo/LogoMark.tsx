@@ -1,16 +1,19 @@
 // Shared logo + app name "mark" rendered in the header (desktop & mobile, next to the
 // hamburger) and in the mobile drawer. Logo priority: live App Builder preview data URL
 // → public/logo.<png|jpg|jpeg|webp> → letter-badge fallback. The app name comes from the
-// live preview, else the resolved deploy/build name (see getAppName).
+// live preview, else the resolved deploy/build name (see getAppName). Visibility of the
+// name text is controlled by getShowAppName / preview show flag.
 import { useEffect, useMemo, useState } from 'react';
 import {
     getPreviewAppName,
     getPreviewLogo,
+    getPreviewShowAppName,
     subscribePreviewAppName,
     subscribePreviewLogo,
+    subscribePreviewShowAppName,
 } from '@/utils/live-branding-store';
 import { isPreviewMode } from '@/utils/is-preview-mode';
-import { getAppName, getLogoCandidates } from '../../../utils/branding';
+import { getAppName, getLogoCandidates, getShowAppName } from '../../../utils/branding';
 
 type TLogoMarkProps = {
     height?: number;
@@ -19,10 +22,12 @@ type TLogoMarkProps = {
 export const LogoMark = ({ height = 32 }: TLogoMarkProps) => {
     const [previewLogo, setPreviewLogo] = useState<string | null>(getPreviewLogo());
     const [previewAppName, setPreviewAppName] = useState<string | null>(getPreviewAppName());
+    const [previewShowName, setPreviewShowName] = useState<boolean>(getPreviewShowAppName());
     const [candidateIndex, setCandidateIndex] = useState(0);
 
     useEffect(() => subscribePreviewLogo(setPreviewLogo), []);
     useEffect(() => subscribePreviewAppName(setPreviewAppName), []);
+    useEffect(() => subscribePreviewShowAppName(setPreviewShowName), []);
 
     // Preview data URL wins, then the deploy-time public/logo.<ext> path recorded in
     // brand.config.json platform.logo_path (getLogoCandidates — nothing when the partner
@@ -38,6 +43,7 @@ export const LogoMark = ({ height = 32 }: TLogoMarkProps) => {
     useEffect(() => setCandidateIndex(0), [candidates]);
 
     const appName = previewAppName || getAppName();
+    const showName = isPreviewMode() ? previewShowName : getShowAppName();
     const logoSrc = candidateIndex < candidates.length ? candidates[candidateIndex] : null;
     const badgeLetter = appName.trim().charAt(0).toUpperCase() || 'A';
 
@@ -61,7 +67,7 @@ export const LogoMark = ({ height = 32 }: TLogoMarkProps) => {
                     {badgeLetter}
                 </span>
             )}
-            <span className='app-header__logo-text'>{appName}</span>
+            {showName && <span className='app-header__logo-text'>{appName}</span>}
         </span>
     );
 };
