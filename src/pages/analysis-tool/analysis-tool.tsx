@@ -163,15 +163,16 @@ const AnalysisTool = observer(() => {
         }));
     }, [digits]);
 
-    const most_frequent = useMemo(() => {
-        if (!distribution.length) return null;
-        return distribution.reduce((a, b) => (b.count > a.count ? b : a));
+    // Rank digits by frequency (descending) to find 1st/2nd most and least frequent.
+    // Ties keep the lower digit first, giving a stable, predictable ranking.
+    const ranked = useMemo(() => {
+        return [...distribution].sort((a, b) => b.count - a.count || a.digit - b.digit);
     }, [distribution]);
 
-    const least_frequent = useMemo(() => {
-        if (!distribution.length) return null;
-        return distribution.reduce((a, b) => (b.count < a.count ? b : a));
-    }, [distribution]);
+    const most_frequent = ranked.length ? ranked[0] : null;
+    const second_most_frequent = ranked.length > 1 ? ranked[1] : null;
+    const least_frequent = ranked.length ? ranked[ranked.length - 1] : null;
+    const second_least_frequent = ranked.length > 1 ? ranked[ranked.length - 2] : null;
 
     const even_odd = useMemo(() => {
         const total = digits.length || 1;
@@ -297,8 +298,14 @@ const AnalysisTool = observer(() => {
                                     (most_frequent && d.digit === most_frequent.digit
                                         ? ' analysis-tool__digit-circle--most'
                                         : '') +
+                                    (second_most_frequent && d.digit === second_most_frequent.digit
+                                        ? ' analysis-tool__digit-circle--second-most'
+                                        : '') +
                                     (least_frequent && d.digit === least_frequent.digit
                                         ? ' analysis-tool__digit-circle--least'
+                                        : '') +
+                                    (second_least_frequent && d.digit === second_least_frequent.digit
+                                        ? ' analysis-tool__digit-circle--second-least'
                                         : '')
                                 }
                             >
@@ -309,7 +316,9 @@ const AnalysisTool = observer(() => {
                     ))}
                 </div>
                 <div className='analysis-tool__legend'>
-                    {localize('current digit / most / least frequency')}
+                    {localize(
+                        'current digit / most (green) / 2nd most (blue) / 2nd least (yellow) / least (red) frequency'
+                    )}
                 </div>
             </div>
 
