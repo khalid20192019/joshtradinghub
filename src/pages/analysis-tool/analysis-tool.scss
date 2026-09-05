@@ -1,1 +1,219 @@
 
+.analysis-tool {
+    padding: 16px;
+    max-width: 720px;
+    margin: 0 auto;
+    color: var(--text-general, #fff);
+
+    &__controls {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+    }
+
+    &__label {
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    &__select {
+        flex: 1;
+        min-width: 160px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-normal, #444);
+        background: var(--general-main-1, #1e1e2d);
+        color: inherit;
+
+        &--small {
+            flex: none;
+            min-width: 70px;
+        }
+    }
+
+    &__input {
+        width: 100px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-normal, #444);
+        background: var(--general-main-1, #1e1e2d);
+        color: inherit;
+    }
+
+    &__hint {
+        opacity: 0.6;
+        font-size: 0.85em;
+    }
+
+    &__price-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        background: var(--general-main-1, #1e1e2d);
+        border-radius: 8px;
+        padding: 12px 16px;
+        flex: 1;
+        min-width: 200px;
+        justify-content: space-between;
+    }
+
+    &__price {
+        font-size: 1.5em;
+        font-weight: 700;
+    }
+
+    &__current-digit {
+        font-size: 1.5em;
+        font-weight: 700;
+        color: #3498db;
+    }
+
+    &__loading {
+        opacity: 0.7;
+        margin-bottom: 12px;
+        font-style: italic;
+    }
+
+    &__section {
+        margin-bottom: 20px;
+    }
+
+    &__section-title {
+        font-weight: 600;
+        margin-bottom: 10px;
+    }
+
+    &__section-title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        font-weight: 600;
+        gap: 8px;
+    }
+
+    &__digits-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    &__digit-circle {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid var(--border-normal, #444);
+
+        &--current {
+            border-color: #3498db;
+        }
+        &--most {
+            background: #2ecc71;
+            color: #08331e;
+        }
+        &--least {
+            background: #e74c3c;
+            color: #330808;
+        }
+    }
+
+    &__digit-value {
+        font-weight: 700;
+        font-size: 1.1em;
+    }
+
+    &__digit-percent {
+        font-size: 0.7em;
+        opacity: 0.85;
+    }
+
+    &__legend {
+        margin-top: 8px;
+        font-size: 0.8em;
+        opacity: 0.6;
+    }
+
+    &__divider {
+        border-top: 1px solid var(--border-normal, #333);
+        margin: 20px 0;
+    }
+
+    &__cards-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+
+        &--three > * {
+            flex-basis: calc(33.333% - 8px);
+        }
+    }
+
+    &__stat-card {
+        flex: 1;
+        min-width: 140px;
+        background: var(--general-main-1, #1e1e2d);
+        border-radius: 8px;
+        padding: 14px;
+        text-align: center;
+    }
+
+    &__stat-label {
+        opacity: 0.7;
+        margin-bottom: 6px;
+    }
+
+    &__stat-value {
+        font-size: 1.4em;
+        font-weight: 700;
+        margin-bottom: 8px;
+    }
+
+    &__stat-percent {
+        font-size: 0.6em;
+        opacity: 0.7;
+        font-weight: 400;
+    }
+
+    &__bar-track {
+        height: 6px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+    }
+
+    &__bar-fill {
+        height: 100%;
+        border-radius: 4px;
+    }
+
+    &__recent-label {
+        margin-top: 12px;
+        margin-bottom: 6px;
+        font-size: 0.85em;
+        opacity: 0.7;
+    }
+
+    &__recent-strip {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    &__pill {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.75em;
+        font-weight: 700;
+    }
+}
