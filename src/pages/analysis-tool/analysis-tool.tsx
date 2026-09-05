@@ -283,21 +283,27 @@ const AnalysisTool = observer(() => {
                 </div>
                 <div className='analysis-tool__digits-row'>
                     {distribution.map(d => (
-                        <div
-                            key={d.digit}
-                            className={
-                                'analysis-tool__digit-circle' +
-                                (d.digit === current_digit ? ' analysis-tool__digit-circle--current' : '') +
-                                (most_frequent && d.digit === most_frequent.digit
-                                    ? ' analysis-tool__digit-circle--most'
-                                    : '') +
-                                (least_frequent && d.digit === least_frequent.digit
-                                    ? ' analysis-tool__digit-circle--least'
-                                    : '')
-                            }
-                        >
-                            <div className='analysis-tool__digit-value'>{d.digit}</div>
-                            <div className='analysis-tool__digit-percent'>{d.percent}%</div>
+                        <div key={d.digit} className='analysis-tool__digit-wrap'>
+                            {d.digit === current_digit && (
+                                <div className='analysis-tool__cursor' aria-hidden='true'>
+                                    ▼
+                                </div>
+                            )}
+                            <div
+                                className={
+                                    'analysis-tool__digit-circle' +
+                                    (d.digit === current_digit ? ' analysis-tool__digit-circle--current' : '') +
+                                    (most_frequent && d.digit === most_frequent.digit
+                                        ? ' analysis-tool__digit-circle--most'
+                                        : '') +
+                                    (least_frequent && d.digit === least_frequent.digit
+                                        ? ' analysis-tool__digit-circle--least'
+                                        : '')
+                                }
+                            >
+                                <div className='analysis-tool__digit-value'>{d.digit}</div>
+                                <div className='analysis-tool__digit-percent'>{d.percent}%</div>
+                            </div>
                         </div>
                     ))}
                 </div>
