@@ -1,4 +1,3 @@
-
 .analysis-tool {
     padding: 16px;
     max-width: 720px;
@@ -100,6 +99,19 @@
         gap: 10px;
     }
 
+    &__digit-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    &__cursor {
+        color: #3498db;
+        font-size: 0.8em;
+        line-height: 1;
+        margin-bottom: 2px;
+    }
+
     &__digit-circle {
         width: 60px;
         height: 60px;
@@ -117,9 +129,17 @@
             background: #2ecc71;
             color: #08331e;
         }
+        &--second-most {
+            background: #3498db;
+            color: #082033;
+        }
         &--least {
             background: #e74c3c;
             color: #330808;
+        }
+        &--second-least {
+            background: #f1c40f;
+            color: #332b08;
         }
     }
 
