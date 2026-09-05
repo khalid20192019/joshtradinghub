@@ -1,4 +1,3 @@
-
 // @ts-nocheck
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react-lite';
@@ -12,7 +11,12 @@ const RECENT_COUNT = 20;
 
 const getDecimals = (symbol: string) => {
     const pip_size = api_base?.pip_sizes?.[symbol];
-    if (!pip_size) return 2;
+    if (pip_size === undefined || pip_size === null) return 2;
+    // pip_sizes may be either the decimal place count (e.g. 2) or the
+    // pip increment itself (e.g. 0.01) — handle both shapes safely.
+    if (Number.isInteger(pip_size) && pip_size >= 0 && pip_size <= 6) {
+        return pip_size;
+    }
     const str = String(pip_size);
     const idx = str.indexOf('.');
     return idx === -1 ? 0 : str.length - idx - 1;
