@@ -46,6 +46,7 @@ import './main.scss';
 
 const ChartWrapper = lazy(() => import('../chart/chart-wrapper'));
 const Tutorial = lazy(() => import('../tutorials'));
+const AnalysisTool = lazy(() => import('../analysis-tool'));
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -78,7 +79,7 @@ const AppWrapper = observer(() => {
     const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'chart', 'tutorial'];
+    const hash = ['dashboard', 'bot_builder', 'chart', 'analysis_tool', 'tutorial'];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -426,6 +427,37 @@ const AppWrapper = observer(() => {
                                     fallback={<ChunkLoader message={localize('Please wait, loading chart...')} />}
                                 >
                                     <ChartWrapper show_digits_stats={false} />
+                                </Suspense>
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
+                                            <path
+                                                d='M3 3v18h18'
+                                                stroke='var(--text-general)'
+                                                strokeWidth='2'
+                                                strokeLinecap='round'
+                                            />
+                                            <path
+                                                d='M7 14l3-4 3 2 5-6'
+                                                stroke='var(--text-general)'
+                                                strokeWidth='2'
+                                                strokeLinecap='round'
+                                                strokeLinejoin='round'
+                                            />
+                                        </svg>
+                                        <Localize i18n_default_text='Analysis Tool' />
+                                    </>
+                                }
+                                id='id-analysis-tool'
+                            >
+                                <Suspense
+                                    fallback={
+                                        <ChunkLoader message={localize('Please wait, loading analysis tool...')} />
+                                    }
+                                >
+                                    <AnalysisTool />
                                 </Suspense>
                             </div>
                             <div
