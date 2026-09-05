@@ -62,11 +62,12 @@ const AnalysisTool = observer(() => {
     const subscription_id_ref = useRef<string | null>(null);
     const message_subscription_ref = useRef<any>(null);
 
-    // Load available synthetic index symbols
+    // Load available synthetic index symbols — Volatility and Jump indices only
     useEffect(() => {
         const active = api_base?.active_symbols || [];
         const synthetics = active
             .filter((s: any) => s.market === 'synthetic_index')
+            .filter((s: any) => /volatility|jump/i.test(s.display_name || ''))
             .map((s: any) => ({
                 symbol: s.underlying_symbol || s.symbol,
                 display_name: s.display_name || s.underlying_symbol || s.symbol,
