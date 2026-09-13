@@ -47,6 +47,7 @@ import './main.scss';
 const ChartWrapper = lazy(() => import('../chart/chart-wrapper'));
 const Tutorial = lazy(() => import('../tutorials'));
 const AnalysisTool = lazy(() => import('../analysis-tool'));
+const TradingBots = lazy(() => import('../trading-bots'));
 
 const AppWrapper = observer(() => {
     const { connectionStatus } = useApiBase();
@@ -79,7 +80,7 @@ const AppWrapper = observer(() => {
     const { clear } = summary_card;
     const { DASHBOARD, BOT_BUILDER } = DBOT_TABS;
     const init_render = React.useRef(true);
-    const hash = ['dashboard', 'bot_builder', 'chart', 'analysis_tool', 'tutorial'];
+    const hash = ['dashboard', 'bot_builder', 'chart', 'analysis_tool', 'trading_bots', 'tutorial'];
     const { isDesktop } = useDevice();
     const location = useLocation();
     const navigate = useNavigate();
@@ -458,6 +459,47 @@ const AppWrapper = observer(() => {
                                     }
                                 >
                                     <AnalysisTool />
+                                </Suspense>
+                            </div>
+                            <div
+                                label={
+                                    <>
+                                        <svg width='24' height='24' viewBox='0 0 24 24' fill='none'>
+                                            <rect
+                                                x='4'
+                                                y='7'
+                                                width='16'
+                                                height='12'
+                                                rx='2'
+                                                stroke='var(--text-general)'
+                                                strokeWidth='2'
+                                            />
+                                            <path
+                                                d='M9 7V5a3 3 0 0 1 6 0v2'
+                                                stroke='var(--text-general)'
+                                                strokeWidth='2'
+                                                strokeLinecap='round'
+                                            />
+                                            <circle cx='9' cy='13' r='1.3' fill='var(--text-general)' />
+                                            <circle cx='15' cy='13' r='1.3' fill='var(--text-general)' />
+                                            <path
+                                                d='M8 17h8'
+                                                stroke='var(--text-general)'
+                                                strokeWidth='2'
+                                                strokeLinecap='round'
+                                            />
+                                        </svg>
+                                        <Localize i18n_default_text='Trading Bots' />
+                                    </>
+                                }
+                                id='id-trading-bots'
+                            >
+                                <Suspense
+                                    fallback={
+                                        <ChunkLoader message={localize('Please wait, loading trading bots...')} />
+                                    }
+                                >
+                                    <TradingBots handleTabChange={handleTabChange} />
                                 </Suspense>
                             </div>
                             <div
