@@ -1,4 +1,3 @@
-
 // @ts-nocheck — new feature, matches existing vendored bot code conventions; see AGENTS.md
 import React from 'react';
 import { observer } from 'mobx-react-lite';
@@ -86,6 +85,28 @@ const TradingBots = observer(({ handleTabChange }: TTradingBotsProps) => {
         return matches_category && matches_search;
     });
 
+    // Poll for the Bot Builder's Blockly workspace to exist. It's only
+    // created once the Bot Builder tab has mounted, so we must switch to
+    // that tab first and wait for it, rather than loading the strategy
+    // while still on the Trading Bots tab (which crashes because the
+    // workspace doesn't exist yet).
+    const waitForWorkspace = (timeout_ms = 8000, interval_ms = 150) =>
+        new Promise<boolean>(resolve => {
+            const start = Date.now();
+            const check = () => {
+                if (window?.Blockly?.derivWorkspace) {
+                    resolve(true);
+                    return;
+                }
+                if (Date.now() - start >= timeout_ms) {
+                    resolve(false);
+                    return;
+                }
+                setTimeout(check, interval_ms);
+            };
+            check();
+        });
+
     const handleLoadBot = async (bot: TBot) => {
         setLoadingBotId(bot.id);
         setErrorBotId(null);
@@ -98,6 +119,16 @@ const TradingBots = observer(({ handleTabChange }: TTradingBotsProps) => {
             if (!response.ok) throw new Error(`Failed to fetch ${bot.file}`);
             const xml = await response.text();
 
+            // Switch to Bot Builder FIRST so its Blockly workspace mounts,
+            // then wait for it to actually be ready before loading.
+            setActiveTab(DBOT_TABS.BOT_BUILDER);
+            if (handleTabChange) handleTabChange(DBOT_TABS.BOT_BUILDER);
+
+            const workspace_ready = await waitForWorkspace();
+            if (!workspace_ready) {
+                throw new Error('Bot Builder workspace did not initialise in time');
+            }
+
             await loadStrategyToBuilder(
                 {
                     id: uuidv4(),
@@ -107,9 +138,6 @@ const TradingBots = observer(({ handleTabChange }: TTradingBotsProps) => {
                 },
                 true
             );
-
-            setActiveTab(DBOT_TABS.BOT_BUILDER);
-            if (handleTabChange) handleTabChange(DBOT_TABS.BOT_BUILDER);
         } catch (error) {
             console.error('Error loading bot:', error);
             setErrorBotId(bot.id);
