@@ -23,7 +23,13 @@ class ErrorBoundary extends React.Component {
             <ErrorComponent
                 should_show_refresh={true}
                 header='An error occurred'
-                message={this.state.error?.message || String(this.state.error)}
+                message={
+                    (this.state.error?.message || String(this.state.error)) +
+                    '\n\n' +
+                    (this.state.error?.stack || '') +
+                    '\n\nComponentStack:\n' +
+                    (this.state.info?.componentStack || '')
+                }
             />
         ) : (
             this.props.children
