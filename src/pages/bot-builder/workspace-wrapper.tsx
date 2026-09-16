@@ -25,8 +25,6 @@ const WorkspaceWrapper = observer(() => {
             <React.Fragment>
                 <Toolbox />
                 <Toolbar />
-                <Flyout />
-                <StopBotModal />
             </React.Fragment>
         );
 
