@@ -470,20 +470,22 @@ export default class LoadModalStore {
     };
 
     loadStrategyOnBotBuilder = async () => {
-        const {
-            strategy_id = window.Blockly.utils.idGenerator.genUid(),
-            convertedDom,
-            block_string,
-        } = window.Blockly.xmlValues;
-        const derivWorkspace = window.Blockly.derivWorkspace;
+        try {
+            const {
+                strategy_id = window.Blockly.utils.idGenerator.genUid(),
+                convertedDom,
+                block_string,
+            } = window.Blockly.xmlValues;
+            const derivWorkspace = window.Blockly.derivWorkspace;
 
-        window.Blockly.Xml.clearWorkspaceAndLoadFromXml(convertedDom, derivWorkspace);
-        derivWorkspace.cleanUp();
-        derivWorkspace.clearUndo();
-        derivWorkspace.current_strategy_id = strategy_id;
-
-        /* [AI] - Analytics event tracking removed - see migrate-docs/MONITORING_PACKAGES.md for re-implementation guide */
-        /* [/AI] */
+            window.Blockly.Xml.clearWorkspaceAndLoadFromXml(convertedDom, derivWorkspace);
+            derivWorkspace.cleanUp();
+            derivWorkspace.clearUndo();
+            derivWorkspace.current_strategy_id = strategy_id;
+        } catch (err) {
+            alert('BOT BUILDER LOAD ERROR: ' + (err?.message || err) + '\n\nSTACK:\n' + (err?.stack || 'no stack'));
+            throw err;
+        }
     };
 
     updateXmlValuesOnStrategySelection = () => {
