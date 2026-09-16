@@ -24,7 +24,6 @@ const WorkspaceWrapper = observer(() => {
         return (
             <React.Fragment>
                 <Toolbox />
-                <Toolbar />
             </React.Fragment>
         );
 
