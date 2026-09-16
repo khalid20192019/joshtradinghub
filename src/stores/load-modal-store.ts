@@ -290,17 +290,22 @@ export default class LoadModalStore {
 
     loadStrategyToBuilder = async (strategy: TStrategy, is_show_notification: boolean = true) => {
         if (strategy?.id) {
-            await load({
-                block_string: strategy.xml,
-                strategy_id: strategy.id,
-                file_name: strategy.name,
-                workspace: window.Blockly?.derivWorkspace,
-                from: strategy.save_type,
-                drop_event: {},
-                showIncompatibleStrategyDialog: false,
-                show_snackbar: is_show_notification,
-            });
-            window.Blockly.derivWorkspace.strategy_to_load = strategy.xml;
+            try {
+                await load({
+                    block_string: strategy.xml,
+                    strategy_id: strategy.id,
+                    file_name: strategy.name,
+                    workspace: window.Blockly?.derivWorkspace,
+                    from: strategy.save_type,
+                    drop_event: {},
+                    showIncompatibleStrategyDialog: false,
+                    show_snackbar: is_show_notification,
+                });
+                window.Blockly.derivWorkspace.strategy_to_load = strategy.xml;
+            } catch (err) {
+                alert('LOAD ERROR: ' + (err?.message || err) + '\n\nSTACK:\n' + (err?.stack || 'no stack'));
+                throw err;
+            }
         }
     };
 
